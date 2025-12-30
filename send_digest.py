@@ -36,7 +36,13 @@ def get_recent_articles(supabase):
     return result.data
 
 
-def format_html_email(articles):
+def get_weather(supabase):
+    """Get current weather for all cities."""
+    result = supabase.table("weather").select("*").order("city").execute()
+    return result.data
+
+
+def format_html_email(articles, weather):
     """Format articles as HTML email."""
     today = datetime.now().strftime("%B %d, %Y")
 
@@ -54,6 +60,13 @@ def format_html_email(articles):
         <style>
             body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }}
             h1 {{ color: #1a1a1a; border-bottom: 2px solid #333; padding-bottom: 10px; }}
+            .weather-section {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; }}
+            .weather-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; }}
+            .weather-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
+            .weather-city {{ background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px; font-size: 13px; }}
+            .weather-city-name {{ font-weight: bold; }}
+            .weather-temp {{ font-size: 18px; }}
+            .weather-details {{ font-size: 11px; opacity: 0.9; }}
             .priority-section {{ margin: 20px 0; }}
             .priority-header {{ font-size: 14px; font-weight: bold; color: #666; margin-bottom: 10px; }}
             .article {{ background: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #ccc; }}
@@ -74,6 +87,38 @@ def format_html_email(articles):
         <h1>📰 Kansas Local News Digest</h1>
         <p style="color: #666;">{today} • {len(articles)} new articles</p>
     """
+
+    # Weather section
+    if weather:
+        html += """
+        <div class="weather-section">
+            <div class="weather-title">🌤️ Kansas Weather</div>
+            <div class="weather-grid">
+        """
+        for w in weather:
+            city = w.get("city", "")
+            temp = w.get("current_temp", "")
+            conditions = w.get("current_conditions", "")
+            high = w.get("forecast_high", "")
+            low = w.get("forecast_low", "")
+            precip = w.get("precip_chance")
+
+            temp_str = f"{temp}°F" if temp else "N/A"
+            hl_str = f"H:{high}° L:{low}°" if high and low else ""
+            precip_str = f" | {precip}% precip" if precip else ""
+
+            html += f"""
+                <div class="weather-city">
+                    <div class="weather-city-name">{city}</div>
+                    <div class="weather-temp">{temp_str}</div>
+                    <div class="weather-details">{conditions}</div>
+                    <div class="weather-details">{hl_str}{precip_str}</div>
+                </div>
+            """
+        html += """
+            </div>
+        </div>
+        """
 
     if not articles:
         html += "<p>No new articles in the past 24 hours.</p>"
@@ -125,12 +170,25 @@ def format_html_email(articles):
     return html
 
 
-def format_plain_text(articles):
+def format_plain_text(articles, weather):
     """Format articles as plain text fallback."""
     today = datetime.now().strftime("%B %d, %Y")
     text = f"Kansas Local News Digest - {today}\n"
     text += f"{len(articles)} new articles\n"
     text += "=" * 50 + "\n\n"
+
+    # Weather section
+    if weather:
+        text += "🌤️ KANSAS WEATHER\n"
+        text += "-" * 30 + "\n"
+        for w in weather:
+            city = w.get("city", "")
+            temp = w.get("current_temp", "")
+            conditions = w.get("current_conditions", "")
+            high = w.get("forecast_high", "")
+            low = w.get("forecast_low", "")
+            text += f"{city}: {temp}°F - {conditions} (H:{high}° L:{low}°)\n"
+        text += "\n" + "=" * 50 + "\n\n"
 
     if not articles:
         text += "No new articles in the past 24 hours.\n"
@@ -187,18 +245,23 @@ def send_email(html_content, plain_content, article_count):
 
 def main():
     """Generate and send nightly digest."""
-    print("Fetching recent articles...")
     supabase = get_supabase()
+
+    print("Fetching weather...")
+    weather = get_weather(supabase)
+    print(f"Got weather for {len(weather)} cities")
+
+    print("Fetching recent articles...")
     articles = get_recent_articles(supabase)
     print(f"Found {len(articles)} articles from the past 24 hours")
 
-    if not articles:
-        print("No new articles to send.")
+    if not articles and not weather:
+        print("No content to send.")
         return
 
     print("Formatting email...")
-    html_content = format_html_email(articles)
-    plain_content = format_plain_text(articles)
+    html_content = format_html_email(articles, weather)
+    plain_content = format_plain_text(articles, weather)
 
     print(f"Sending digest to {DIGEST_RECIPIENT}...")
     if send_email(html_content, plain_content, len(articles)):
