@@ -42,16 +42,38 @@ def get_weather(supabase):
     return result.data
 
 
-def format_html_email(articles, weather):
+def get_first_party_articles(supabase):
+    """Get accessible first party articles from the past 24 hours."""
+    yesterday = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+
+    result = supabase.table("first_party_articles").select(
+        "title, bullet, location, priority, url, published_at"
+    ).eq("is_local", True).eq("is_accessible", True).gte(
+        "fetched_at", yesterday
+    ).order("priority", desc=True).order("published_at", desc=True).execute()
+
+    return result.data
+
+
+def format_html_email(articles, weather, first_party_articles=None):
     """Format articles as HTML email, grouped by city."""
     today = datetime.now().strftime("%B %d, %Y")
 
     # Create weather lookup by city
     weather_by_city = {w.get("city"): w for w in weather} if weather else {}
 
+    # Merge news and first party articles, marking first party
+    all_articles = []
+    for a in articles:
+        a["is_first_party"] = False
+        all_articles.append(a)
+    for a in (first_party_articles or []):
+        a["is_first_party"] = True
+        all_articles.append(a)
+
     # Group articles by city
     by_city = {}
-    for article in articles:
+    for article in all_articles:
         city = article.get("location") or "Other"
         if city not in by_city:
             by_city[city] = []
@@ -141,14 +163,17 @@ def format_html_email(articles, weather):
                 priority = article.get("priority") or 3
                 plabel = priority_labels.get(priority, "")
                 published = article.get("published_at", "")
+                is_first_party = article.get("is_first_party", False)
                 if published:
                     published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
                 else:
                     published = ""
 
+                fp_badge = '<span style="background:#17a2b8;color:white;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:5px;">OFFICIAL</span>' if is_first_party else ''
+
                 html += f"""
                 <div class="article p{priority}">
-                    <div class="priority-badge">{plabel}{f' • {published}' if published else ''}</div>
+                    <div class="priority-badge">{plabel}{f' • {published}' if published else ''}{fp_badge}</div>
                     <div class="title"><a href="{url}">{title}</a></div>
                     <div class="bullet">{bullet}</div>
                 </div>
@@ -167,11 +192,21 @@ def format_html_email(articles, weather):
     return html
 
 
-def format_plain_text(articles, weather):
+def format_plain_text(articles, weather, first_party_articles=None):
     """Format articles as plain text fallback, grouped by city."""
     today = datetime.now().strftime("%B %d, %Y")
+
+    # Merge news and first party articles
+    all_articles = []
+    for a in articles:
+        a["is_first_party"] = False
+        all_articles.append(a)
+    for a in (first_party_articles or []):
+        a["is_first_party"] = True
+        all_articles.append(a)
+
     text = f"Kansas Local News Digest - {today}\n"
-    text += f"{len(articles)} new articles\n"
+    text += f"{len(all_articles)} new articles\n"
     text += "=" * 50 + "\n\n"
 
     # Create weather lookup by city
@@ -179,7 +214,7 @@ def format_plain_text(articles, weather):
 
     # Group articles by city
     by_city = {}
-    for article in articles:
+    for article in all_articles:
         city = article.get("location") or "Other"
         if city not in by_city:
             by_city[city] = []
@@ -189,7 +224,7 @@ def format_plain_text(articles, weather):
     for city in by_city:
         by_city[city].sort(key=lambda a: a.get("priority") or 3, reverse=True)
 
-    if not articles:
+    if not all_articles:
         text += "No new articles in the past 24 hours.\n"
     else:
         for city in sorted(by_city.keys()):
@@ -216,12 +251,14 @@ def format_plain_text(articles, weather):
                 priority = article.get("priority") or 3
                 plabels = {5: "🔴", 4: "🟠", 3: "🟡", 2: "🟢", 1: "⚪"}
                 published = article.get("published_at", "")
+                is_first_party = article.get("is_first_party", False)
                 if published:
                     published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
                 else:
                     published = ""
 
-                text += f"{plabels.get(priority, '')} {title}{f' ({published})' if published else ''}\n"
+                fp_tag = " [OFFICIAL]" if is_first_party else ""
+                text += f"{plabels.get(priority, '')} {title}{f' ({published})' if published else ''}{fp_tag}\n"
                 text += f"→ {bullet}\n\n"
 
     return text
@@ -262,20 +299,25 @@ def main():
     weather = get_weather(supabase)
     print(f"Got weather for {len(weather)} cities")
 
-    print("Fetching recent articles...")
+    print("Fetching recent news articles...")
     articles = get_recent_articles(supabase)
-    print(f"Found {len(articles)} articles from the past 24 hours")
+    print(f"Found {len(articles)} news articles from the past 24 hours")
 
-    if not articles and not weather:
+    print("Fetching first party articles...")
+    first_party = get_first_party_articles(supabase)
+    print(f"Found {len(first_party)} first party articles from the past 24 hours")
+
+    total_articles = len(articles) + len(first_party)
+    if total_articles == 0 and not weather:
         print("No content to send.")
         return
 
     print("Formatting email...")
-    html_content = format_html_email(articles, weather)
-    plain_content = format_plain_text(articles, weather)
+    html_content = format_html_email(articles, weather, first_party)
+    plain_content = format_plain_text(articles, weather, first_party)
 
     print(f"Sending digest to {DIGEST_RECIPIENT}...")
-    if send_email(html_content, plain_content, len(articles)):
+    if send_email(html_content, plain_content, total_articles):
         print("Email sent successfully!")
     else:
         print("Failed to send email.")

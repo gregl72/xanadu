@@ -27,6 +27,26 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python fetch_weather.py
 
+      - name: Fetch first party sources
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          FIRST_PARTY_SHEET_URL: ${{ secrets.FIRST_PARTY_SHEET_URL }}
+        run: python fetch_first_party_sources.py
+
+      - name: Fetch first party articles
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python fetch_first_party_articles.py
+
+      - name: Analyze first party articles
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python analyze_first_party.py
+
       - name: Send digest email
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
