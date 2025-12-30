@@ -98,10 +98,15 @@ def format_html_email(articles):
                 title = article.get("title", "Untitled")
                 bullet = article.get("bullet") or "No summary available."
                 url = article.get("url", "#")
+                published = article.get("published_at", "")
+                if published:
+                    published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
+                else:
+                    published = ""
 
                 html += f"""
                 <div class="article p{priority}">
-                    <div class="location">📍 {location}</div>
+                    <div class="location">📍 {location}{f' • {published}' if published else ''}</div>
                     <div class="title"><a href="{url}">{title}</a></div>
                     <div class="bullet">{bullet}</div>
                 </div>
@@ -140,8 +145,13 @@ def format_plain_text(articles):
             location = article.get("location") or "Kansas"
             title = article.get("title", "Untitled")
             bullet = article.get("bullet") or "No summary available."
+            published = article.get("published_at", "")
+            if published:
+                published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
+            else:
+                published = ""
 
-            text += f"📍 {location}\n"
+            text += f"📍 {location}{f' • {published}' if published else ''}\n"
             text += f"{title}\n"
             text += f"→ {bullet}\n\n"
 
