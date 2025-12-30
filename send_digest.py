@@ -43,16 +43,23 @@ def get_weather(supabase):
 
 
 def format_html_email(articles, weather):
-    """Format articles as HTML email."""
+    """Format articles as HTML email, grouped by city."""
     today = datetime.now().strftime("%B %d, %Y")
 
-    priority_labels = {
-        5: ("🔴", "BREAKING"),
-        4: ("🟠", "IMPORTANT"),
-        3: ("🟡", "LOCAL NEWS"),
-        2: ("🟢", "MINOR"),
-        1: ("⚪", "LOW PRIORITY"),
-    }
+    # Create weather lookup by city
+    weather_by_city = {w.get("city"): w for w in weather} if weather else {}
+
+    # Group articles by city
+    by_city = {}
+    for article in articles:
+        city = article.get("location") or "Other"
+        if city not in by_city:
+            by_city[city] = []
+        by_city[city].append(article)
+
+    # Sort articles within each city by priority (desc)
+    for city in by_city:
+        by_city[city].sort(key=lambda a: a.get("priority") or 3, reverse=True)
 
     html = f"""
     <html>
@@ -60,26 +67,23 @@ def format_html_email(articles, weather):
         <style>
             body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }}
             h1 {{ color: #1a1a1a; border-bottom: 2px solid #333; padding-bottom: 10px; }}
-            .weather-section {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; }}
-            .weather-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; }}
-            .weather-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
-            .weather-city {{ background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px; font-size: 13px; }}
-            .weather-city-name {{ font-weight: bold; }}
-            .weather-temp {{ font-size: 18px; }}
-            .weather-details {{ font-size: 11px; opacity: 0.9; }}
-            .priority-section {{ margin: 20px 0; }}
-            .priority-header {{ font-size: 14px; font-weight: bold; color: #666; margin-bottom: 10px; }}
-            .article {{ background: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #ccc; }}
+            .city-section {{ margin: 25px 0; }}
+            .city-header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }}
+            .city-name {{ font-size: 18px; font-weight: bold; }}
+            .city-weather {{ font-size: 14px; text-align: right; }}
+            .city-temp {{ font-size: 20px; font-weight: bold; }}
+            .article {{ background: #f9f9f9; padding: 15px; margin: 0; border-left: 4px solid #ccc; border-bottom: 1px solid #eee; }}
+            .article:last-child {{ border-radius: 0 0 10px 10px; }}
             .article.p5 {{ border-left-color: #dc3545; }}
             .article.p4 {{ border-left-color: #fd7e14; }}
             .article.p3 {{ border-left-color: #ffc107; }}
             .article.p2 {{ border-left-color: #28a745; }}
             .article.p1 {{ border-left-color: #6c757d; }}
-            .location {{ font-size: 12px; color: #666; margin-bottom: 5px; }}
-            .title {{ font-size: 16px; font-weight: bold; margin-bottom: 8px; }}
+            .priority-badge {{ font-size: 10px; color: #666; margin-bottom: 5px; }}
+            .title {{ font-size: 15px; font-weight: bold; margin-bottom: 6px; }}
             .title a {{ color: #1a1a1a; text-decoration: none; }}
             .title a:hover {{ text-decoration: underline; }}
-            .bullet {{ font-size: 14px; color: #444; line-height: 1.5; }}
+            .bullet {{ font-size: 13px; color: #444; line-height: 1.4; }}
             .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; }}
         </style>
     </head>
@@ -88,70 +92,49 @@ def format_html_email(articles, weather):
         <p style="color: #666;">{today} • {len(articles)} new articles</p>
     """
 
-    # Weather section
-    if weather:
-        html += """
-        <div class="weather-section">
-            <div class="weather-title">🌤️ Kansas Weather</div>
-            <div class="weather-grid">
-        """
-        for w in weather:
-            city = w.get("city", "")
-            temp = w.get("current_temp", "")
-            conditions = w.get("current_conditions", "")
-            high = w.get("forecast_high", "")
-            low = w.get("forecast_low", "")
-            precip = w.get("precip_chance")
-
-            temp_str = f"{temp}°F" if temp else "N/A"
-            hl_str = f"H:{high}° L:{low}°" if high and low else ""
-            precip_str = f" | {precip}% precip" if precip else ""
-
-            html += f"""
-                <div class="weather-city">
-                    <div class="weather-city-name">{city}</div>
-                    <div class="weather-temp">{temp_str}</div>
-                    <div class="weather-details">{conditions}</div>
-                    <div class="weather-details">{hl_str}{precip_str}</div>
-                </div>
-            """
-        html += """
-            </div>
-        </div>
-        """
-
     if not articles:
         html += "<p>No new articles in the past 24 hours.</p>"
     else:
-        # Group by priority
-        by_priority = {}
-        for article in articles:
-            p = article.get("priority") or 3
-            if p not in by_priority:
-                by_priority[p] = []
-            by_priority[p].append(article)
+        # Sort cities alphabetically
+        for city in sorted(by_city.keys()):
+            city_articles = by_city[city]
+            w = weather_by_city.get(city)
 
-        for priority in sorted(by_priority.keys(), reverse=True):
-            emoji, label = priority_labels.get(priority, ("⚪", "OTHER"))
+            # City header with weather
+            weather_html = ""
+            if w:
+                temp = w.get("current_temp", "")
+                conditions = w.get("current_conditions", "")
+                high = w.get("forecast_high", "")
+                low = w.get("forecast_low", "")
+                weather_html = f"""
+                <div class="city-weather">
+                    <div class="city-temp">{temp}°F</div>
+                    <div>{conditions}</div>
+                    <div>H:{high}° L:{low}°</div>
+                </div>
+                """
+
             html += f"""
-            <div class="priority-section">
-                <div class="priority-header">{emoji} {label}</div>
+            <div class="city-section">
+                <div class="city-header">
+                    <div class="city-name">📍 {city}</div>
+                    {weather_html}
+                </div>
             """
 
-            for article in by_priority[priority]:
-                location = article.get("location") or "Kansas"
+            priority_labels = {5: "🔴 BREAKING", 4: "🟠 IMPORTANT", 3: "🟡 NEWS", 2: "🟢 MINOR", 1: "⚪ LOW"}
+
+            for article in city_articles:
                 title = article.get("title", "Untitled")
                 bullet = article.get("bullet") or "No summary available."
                 url = article.get("url", "#")
-                published = article.get("published_at", "")
-                if published:
-                    published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
-                else:
-                    published = ""
+                priority = article.get("priority") or 3
+                plabel = priority_labels.get(priority, "")
 
                 html += f"""
                 <div class="article p{priority}">
-                    <div class="location">📍 {location}{f' • {published}' if published else ''}</div>
+                    <div class="priority-badge">{plabel}</div>
                     <div class="title"><a href="{url}">{title}</a></div>
                     <div class="bullet">{bullet}</div>
                 </div>
@@ -171,47 +154,52 @@ def format_html_email(articles, weather):
 
 
 def format_plain_text(articles, weather):
-    """Format articles as plain text fallback."""
+    """Format articles as plain text fallback, grouped by city."""
     today = datetime.now().strftime("%B %d, %Y")
     text = f"Kansas Local News Digest - {today}\n"
     text += f"{len(articles)} new articles\n"
     text += "=" * 50 + "\n\n"
 
-    # Weather section
-    if weather:
-        text += "🌤️ KANSAS WEATHER\n"
-        text += "-" * 30 + "\n"
-        for w in weather:
-            city = w.get("city", "")
-            temp = w.get("current_temp", "")
-            conditions = w.get("current_conditions", "")
-            high = w.get("forecast_high", "")
-            low = w.get("forecast_low", "")
-            text += f"{city}: {temp}°F - {conditions} (H:{high}° L:{low}°)\n"
-        text += "\n" + "=" * 50 + "\n\n"
+    # Create weather lookup by city
+    weather_by_city = {w.get("city"): w for w in weather} if weather else {}
+
+    # Group articles by city
+    by_city = {}
+    for article in articles:
+        city = article.get("location") or "Other"
+        if city not in by_city:
+            by_city[city] = []
+        by_city[city].append(article)
+
+    # Sort articles within each city by priority (desc)
+    for city in by_city:
+        by_city[city].sort(key=lambda a: a.get("priority") or 3, reverse=True)
 
     if not articles:
         text += "No new articles in the past 24 hours.\n"
     else:
-        current_priority = None
-        for article in articles:
-            p = article.get("priority") or 3
-            if p != current_priority:
-                current_priority = p
-                text += f"\n--- PRIORITY {p} ---\n\n"
+        for city in sorted(by_city.keys()):
+            city_articles = by_city[city]
+            w = weather_by_city.get(city)
 
-            location = article.get("location") or "Kansas"
-            title = article.get("title", "Untitled")
-            bullet = article.get("bullet") or "No summary available."
-            published = article.get("published_at", "")
-            if published:
-                published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
-            else:
-                published = ""
+            text += f"\n{'=' * 40}\n"
+            text += f"📍 {city}"
+            if w:
+                temp = w.get("current_temp", "")
+                conditions = w.get("current_conditions", "")
+                high = w.get("forecast_high", "")
+                low = w.get("forecast_low", "")
+                text += f" | {temp}°F {conditions} (H:{high}° L:{low}°)"
+            text += f"\n{'=' * 40}\n\n"
 
-            text += f"📍 {location}{f' • {published}' if published else ''}\n"
-            text += f"{title}\n"
-            text += f"→ {bullet}\n\n"
+            for article in city_articles:
+                title = article.get("title", "Untitled")
+                bullet = article.get("bullet") or "No summary available."
+                priority = article.get("priority") or 3
+                plabels = {5: "🔴", 4: "🟠", 3: "🟡", 2: "🟢", 1: "⚪"}
+
+                text += f"{plabels.get(priority, '')} {title}\n"
+                text += f"→ {bullet}\n\n"
 
     return text
 
