@@ -104,16 +104,25 @@ def format_html_email(articles, weather):
             weather_html = ""
             if w:
                 temp = w.get("current_temp", "")
-                conditions = w.get("current_conditions", "")
-                high = w.get("forecast_high", "")
-                low = w.get("forecast_low", "")
-                weather_html = f"""
-                <div class="city-weather">
-                    <div class="city-temp">{temp}°F</div>
-                    <div>{conditions}</div>
-                    <div>H:{high}° L:{low}°</div>
-                </div>
-                """
+                bullet = w.get("bullet", "")
+                if bullet:
+                    weather_html = f"""
+                    <div class="city-weather">
+                        <div class="city-temp">{temp}°F</div>
+                        <div style="font-size: 12px; max-width: 200px;">{bullet}</div>
+                    </div>
+                    """
+                else:
+                    conditions = w.get("current_conditions", "")
+                    high = w.get("forecast_high", "")
+                    low = w.get("forecast_low", "")
+                    weather_html = f"""
+                    <div class="city-weather">
+                        <div class="city-temp">{temp}°F</div>
+                        <div>{conditions}</div>
+                        <div>H:{high}° L:{low}°</div>
+                    </div>
+                    """
 
             html += f"""
             <div class="city-section">
@@ -191,10 +200,14 @@ def format_plain_text(articles, weather):
             text += f"📍 {city}"
             if w:
                 temp = w.get("current_temp", "")
-                conditions = w.get("current_conditions", "")
-                high = w.get("forecast_high", "")
-                low = w.get("forecast_low", "")
-                text += f" | {temp}°F {conditions} (H:{high}° L:{low}°)"
+                bullet = w.get("bullet", "")
+                if bullet:
+                    text += f" | {temp}°F\n{bullet}"
+                else:
+                    conditions = w.get("current_conditions", "")
+                    high = w.get("forecast_high", "")
+                    low = w.get("forecast_low", "")
+                    text += f" | {temp}°F {conditions} (H:{high}° L:{low}°)"
             text += f"\n{'=' * 40}\n\n"
 
             for article in city_articles:

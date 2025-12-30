@@ -3,6 +3,7 @@
 import os
 import time
 
+import anthropic
 import requests
 from dotenv import load_dotenv
 from supabase import create_client
@@ -89,6 +90,8 @@ def parse_weather_data(forecast_periods: list, hourly_periods: list) -> dict:
         "forecast_low": None,
         "forecast_conditions": None,
         "precip_chance": None,
+        "detailed_forecast": None,
+        "temperature_trend": None,
     }
 
     # Current conditions from hourly (first period)
@@ -101,6 +104,8 @@ def parse_weather_data(forecast_periods: list, hourly_periods: list) -> dict:
     if forecast_periods:
         today = forecast_periods[0]
         weather["forecast_conditions"] = today.get("shortForecast")
+        weather["detailed_forecast"] = today.get("detailedForecast")
+        weather["temperature_trend"] = today.get("temperatureTrend")
 
         # Get precip chance
         precip = today.get("probabilityOfPrecipitation", {})
@@ -120,6 +125,32 @@ def parse_weather_data(forecast_periods: list, hourly_periods: list) -> dict:
                 weather["forecast_high"] = forecast_periods[1].get("temperature")
 
     return weather
+
+
+def generate_weather_bullet(client: anthropic.Anthropic, city: str, weather: dict) -> str:
+    """Generate a punchy weather bullet using Claude."""
+    prompt = f"""Summarize this weather data into a single punchy sentence for {city}, Kansas.
+
+Current temp: {weather.get('current_temp')}°F
+Conditions: {weather.get('current_conditions')}
+High: {weather.get('forecast_high')}°F
+Low: {weather.get('forecast_low')}°F
+Precipitation chance: {weather.get('precip_chance') or 0}%
+Detailed forecast: {weather.get('detailed_forecast')}
+Temperature trend: {weather.get('temperature_trend') or 'steady'}
+
+Respond with ONLY the bullet, no prefix. Be concise and conversational, like a local weather report."""
+
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=100,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text.strip()
+    except Exception as e:
+        print(f"    Claude error: {e}")
+        return None
 
 
 def fetch_city_weather(city: str, lat: float, lon: float) -> dict | None:
@@ -151,6 +182,7 @@ def fetch_city_weather(city: str, lat: float, lon: float) -> dict | None:
 def main():
     """Fetch weather for all cities."""
     supabase = get_supabase()
+    claude = anthropic.Anthropic()
 
     print(f"Fetching weather for {len(CITY_COORDS)} cities...\n")
 
@@ -162,6 +194,12 @@ def main():
         if weather:
             print(f"{weather['current_temp']}°F, {weather['current_conditions']}")
 
+            # Generate bullet with Claude
+            bullet = generate_weather_bullet(claude, city, weather)
+            if bullet:
+                weather["bullet"] = bullet
+                print(f"    → {bullet}")
+
             # Upsert to database
             supabase.table("weather").upsert(
                 weather, on_conflict="city"
@@ -169,7 +207,7 @@ def main():
         else:
             print("Failed")
 
-        # Rate limit NWS API
+        # Rate limit NWS API + Claude
         time.sleep(0.5)
 
     print("\nDone!")
