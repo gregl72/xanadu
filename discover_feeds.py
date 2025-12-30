@@ -43,7 +43,27 @@ def fetch_google_sheet():
     response.raise_for_status()
 
     reader = csv.DictReader(StringIO(response.text))
-    return list(reader)
+
+    # Handle multi-source per row format:
+    # City, Source 1, Source 1 URL, Free?, Source 2, Source 2 URL, Free?, ...
+    websites = []
+    for row in reader:
+        city = row.get("City", "").strip()
+        if not city:
+            continue
+
+        # Check for Source 1, Source 2, Source 3
+        for i in range(1, 4):
+            name = row.get(f"Source {i}", "").strip()
+            url = row.get(f"Source {i} URL", "").strip()
+            if name and url:
+                websites.append({
+                    "city": city,
+                    "name": name,
+                    "website_url": url,
+                })
+
+    return websites
 
 
 def find_rss_in_html(url: str, html: str) -> str | None:
