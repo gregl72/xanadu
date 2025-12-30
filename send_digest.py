@@ -131,10 +131,15 @@ def format_html_email(articles, weather):
                 url = article.get("url", "#")
                 priority = article.get("priority") or 3
                 plabel = priority_labels.get(priority, "")
+                published = article.get("published_at", "")
+                if published:
+                    published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
+                else:
+                    published = ""
 
                 html += f"""
                 <div class="article p{priority}">
-                    <div class="priority-badge">{plabel}</div>
+                    <div class="priority-badge">{plabel}{f' • {published}' if published else ''}</div>
                     <div class="title"><a href="{url}">{title}</a></div>
                     <div class="bullet">{bullet}</div>
                 </div>
@@ -197,8 +202,13 @@ def format_plain_text(articles, weather):
                 bullet = article.get("bullet") or "No summary available."
                 priority = article.get("priority") or 3
                 plabels = {5: "🔴", 4: "🟠", 3: "🟡", 2: "🟢", 1: "⚪"}
+                published = article.get("published_at", "")
+                if published:
+                    published = datetime.fromisoformat(published.replace("Z", "+00:00")).strftime("%b %d")
+                else:
+                    published = ""
 
-                text += f"{plabels.get(priority, '')} {title}\n"
+                text += f"{plabels.get(priority, '')} {title}{f' ({published})' if published else ''}\n"
                 text += f"→ {bullet}\n\n"
 
     return text
