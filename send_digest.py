@@ -9,6 +9,8 @@ from email.mime.text import MIMEText
 from dotenv import load_dotenv
 from supabase import create_client
 
+from markets import get_market, get_weather_city, get_all_markets
+
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -71,17 +73,18 @@ def format_html_email(articles, weather, first_party_articles=None):
         a["is_first_party"] = True
         all_articles.append(a)
 
-    # Group articles by city
-    by_city = {}
+    # Group articles by market (using geocoding)
+    by_market = {}
     for article in all_articles:
-        city = article.get("location") or "Other"
-        if city not in by_city:
-            by_city[city] = []
-        by_city[city].append(article)
+        raw_location = article.get("location") or "Unknown"
+        market = get_market(raw_location)
+        if market not in by_market:
+            by_market[market] = []
+        by_market[market].append(article)
 
-    # Sort articles within each city by priority (desc)
-    for city in by_city:
-        by_city[city].sort(key=lambda a: a.get("priority") or 3, reverse=True)
+    # Sort articles within each market by priority (desc)
+    for market in by_market:
+        by_market[market].sort(key=lambda a: a.get("priority") or 3, reverse=True)
 
     html = f"""
     <html>
@@ -114,15 +117,20 @@ def format_html_email(articles, weather, first_party_articles=None):
         <p style="color: #666;">{today} • {len(articles)} new articles</p>
     """
 
-    if not articles:
+    if not all_articles:
         html += "<p>No new articles in the past 24 hours.</p>"
     else:
-        # Sort cities alphabetically
-        for city in sorted(by_city.keys()):
-            city_articles = by_city[city]
-            w = weather_by_city.get(city)
+        # Sort markets in defined order (At Large last)
+        market_order = get_all_markets()
+        sorted_markets = sorted(by_market.keys(), key=lambda m: market_order.index(m) if m in market_order else 999)
 
-            # City header with weather
+        for market in sorted_markets:
+            market_articles = by_market[market]
+            # Get weather using market's weather city
+            weather_city = get_weather_city(market)
+            w = weather_by_city.get(weather_city) if weather_city else None
+
+            # Market header with weather
             weather_html = ""
             if w:
                 temp = w.get("current_temp", "")
@@ -149,14 +157,14 @@ def format_html_email(articles, weather, first_party_articles=None):
             html += f"""
             <div class="city-section">
                 <div class="city-header">
-                    <div class="city-name">📍 {city}</div>
+                    <div class="city-name">📍 {market}</div>
                     {weather_html}
                 </div>
             """
 
             priority_labels = {5: "🔴 BREAKING", 4: "🟠 IMPORTANT", 3: "🟡 NEWS", 2: "🟢 MINOR", 1: "⚪ LOW"}
 
-            for article in city_articles:
+            for article in market_articles:
                 title = article.get("title", "Untitled")
                 bullet = article.get("bullet") or "No summary available."
                 url = article.get("url", "#")
@@ -212,27 +220,33 @@ def format_plain_text(articles, weather, first_party_articles=None):
     # Create weather lookup by city
     weather_by_city = {w.get("city"): w for w in weather} if weather else {}
 
-    # Group articles by city
-    by_city = {}
+    # Group articles by market (using geocoding)
+    by_market = {}
     for article in all_articles:
-        city = article.get("location") or "Other"
-        if city not in by_city:
-            by_city[city] = []
-        by_city[city].append(article)
+        raw_location = article.get("location") or "Unknown"
+        market = get_market(raw_location)
+        if market not in by_market:
+            by_market[market] = []
+        by_market[market].append(article)
 
-    # Sort articles within each city by priority (desc)
-    for city in by_city:
-        by_city[city].sort(key=lambda a: a.get("priority") or 3, reverse=True)
+    # Sort articles within each market by priority (desc)
+    for market in by_market:
+        by_market[market].sort(key=lambda a: a.get("priority") or 3, reverse=True)
 
     if not all_articles:
         text += "No new articles in the past 24 hours.\n"
     else:
-        for city in sorted(by_city.keys()):
-            city_articles = by_city[city]
-            w = weather_by_city.get(city)
+        # Sort markets in defined order (At Large last)
+        market_order = get_all_markets()
+        sorted_markets = sorted(by_market.keys(), key=lambda m: market_order.index(m) if m in market_order else 999)
+
+        for market in sorted_markets:
+            market_articles = by_market[market]
+            weather_city = get_weather_city(market)
+            w = weather_by_city.get(weather_city) if weather_city else None
 
             text += f"\n{'=' * 40}\n"
-            text += f"📍 {city}"
+            text += f"📍 {market}"
             if w:
                 temp = w.get("current_temp", "")
                 bullet = w.get("bullet", "")
@@ -245,7 +259,7 @@ def format_plain_text(articles, weather, first_party_articles=None):
                     text += f" | {temp}°F {conditions} (H:{high}° L:{low}°)"
             text += f"\n{'=' * 40}\n\n"
 
-            for article in city_articles:
+            for article in market_articles:
                 title = article.get("title", "Untitled")
                 bullet = article.get("bullet") or "No summary available."
                 priority = article.get("priority") or 3
