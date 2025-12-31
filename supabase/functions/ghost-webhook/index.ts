@@ -11,25 +11,43 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Health check
+  if (req.method === "GET") {
+    return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  console.log("=== WEBHOOK REQUEST ===");
+  console.log("Method:", req.method);
+  console.log("URL:", req.url);
+  console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries())));
+
   try {
-    // Verify webhook secret
+    // Verify webhook secret (check query param)
     const webhookSecret = Deno.env.get("GHOST_WEBHOOK_SECRET");
-    const providedSecret = req.headers.get("x-ghost-signature") ||
-                           new URL(req.url).searchParams.get("secret");
+    const reqUrl = new URL(req.url);
+    const providedSecret = reqUrl.searchParams.get("secret");
+
+    console.log("Expected secret:", webhookSecret);
+    console.log("Provided secret:", providedSecret);
 
     if (webhookSecret && providedSecret !== webhookSecret) {
-      console.error("Invalid webhook secret");
+      console.error("Invalid webhook secret - expected:", webhookSecret, "got:", providedSecret);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const payload = await req.json();
-    console.log("Received Ghost webhook:", JSON.stringify(payload, null, 2));
+    const rawBody = await req.text();
+    console.log("Raw webhook body:", rawBody);
 
-    // Ghost sends post data in post.current for post.published events
-    const post = payload?.post?.current;
+    const payload = JSON.parse(rawBody);
+    console.log("Parsed payload keys:", Object.keys(payload));
+
+    // Ghost may send in different formats - try multiple
+    const post = payload?.post?.current || payload?.post || payload;
     if (!post) {
       console.log("No post data in payload, might be a different event type");
       return new Response(JSON.stringify({ status: "ignored", reason: "no post data" }), {

@@ -1,0 +1,2 @@
+# Disable JWT verification so Ghost can call without auth header
+verify_jwt = false
