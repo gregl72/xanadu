@@ -10,7 +10,7 @@ from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 # Market definitions with anchor city coordinates (lat, lon)
 # Coordinates are approximate city centers
 MARKETS = {
-    "Ark Valley": {"lat": 37.0619, "lon": -97.0386, "weather_city": "Ark City"},  # Ark City
+    "Ark Valley": {"lat": 37.0619, "lon": -97.0386, "weather_city": "Arkansas City"},  # Ark City
     "Pittsburg": {"lat": 37.4109, "lon": -94.7049, "weather_city": "Pittsburg"},
     "Liberal": {"lat": 37.0431, "lon": -100.9212, "weather_city": "Liberal"},
     "Garden City": {"lat": 37.9717, "lon": -100.8727, "weather_city": "Garden City"},
