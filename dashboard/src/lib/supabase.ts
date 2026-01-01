@@ -17,6 +17,7 @@ export interface Article {
   published_at: string | null;
   fetched_at: string;
   is_first_party?: boolean;
+  additional_markets?: string[];
 }
 
 export interface Weather {

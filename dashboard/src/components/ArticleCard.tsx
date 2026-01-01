@@ -1,42 +1,62 @@
 import { useState } from 'react';
 import type { Article } from '../lib/supabase';
-import { updateArticleBullet, processArticle } from '../hooks/useSupabase';
+import { updateArticle, addArticleMarket, removeArticleMarket, processArticle } from '../hooks/useSupabase';
+import { MARKETS } from '../lib/markets';
+import { getUserEmail } from '../lib/cognito';
 
 interface ArticleCardProps {
   article: Article;
   onUpdate: () => void;
 }
 
-const PRIORITY_LABELS: Record<number, string> = {
-  5: 'BREAKING',
-  4: 'IMPORTANT',
-  3: 'NEWS',
-  2: 'MINOR',
-  1: 'LOW',
-};
+const PRIORITY_OPTIONS = [
+  { value: 5, label: 'BREAKING', color: '#dc3545' },
+  { value: 4, label: 'IMPORTANT', color: '#fd7e14' },
+  { value: 3, label: 'NEWS', color: '#ffc107' },
+  { value: 2, label: 'MINOR', color: '#28a745' },
+  { value: 1, label: 'LOW', color: '#6c757d' },
+];
 
-const PRIORITY_COLORS: Record<number, string> = {
-  5: '#dc3545',
-  4: '#fd7e14',
-  3: '#ffc107',
-  2: '#28a745',
-  1: '#6c757d',
-};
+const MARKET_OPTIONS = ['All', ...MARKETS];
 
 export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
   const [bullet, setBullet] = useState(article.bullet || '');
+  const [priority, setPriority] = useState(article.priority || 3);
+  const [market, setMarket] = useState(article.market || '');
+  const [additionalMarkets, setAdditionalMarkets] = useState<string[]>(article.additional_markets || []);
   const [saving, setSaving] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [showAddMarket, setShowAddMarket] = useState(false);
 
-  const priority = article.priority || 3;
+  const priorityOption = PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[2];
   const needsProcessing = !article.bullet || !article.location;
+
+  // Check if any field has changed
+  const isDirty =
+    bullet !== (article.bullet || '') ||
+    priority !== (article.priority || 3) ||
+    market !== (article.market || '');
 
   async function handleSave() {
     setSaving(true);
     try {
-      await updateArticleBullet(article.id, bullet, article.is_first_party || false);
-      setDirty(false);
+      const changes: { priority?: number; market?: string; bullet?: string } = {};
+
+      if (bullet !== (article.bullet || '')) {
+        changes.bullet = bullet;
+      }
+      if (priority !== (article.priority || 3)) {
+        changes.priority = priority;
+      }
+      if (market !== (article.market || '')) {
+        changes.market = market;
+      }
+
+      if (Object.keys(changes).length > 0) {
+        const email = getUserEmail();
+        await updateArticle(article.id, article.is_first_party || false, changes, email || undefined);
+      }
+
       onUpdate();
     } catch (err) {
       alert('Failed to save: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -50,6 +70,8 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
     try {
       const updated = await processArticle(article.id, article.is_first_party || false);
       setBullet(updated.bullet || '');
+      setPriority(updated.priority || 3);
+      setMarket(updated.market || '');
       onUpdate();
     } catch (err) {
       alert('Failed to process: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -58,32 +80,115 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
     }
   }
 
-  function handleChange(value: string) {
-    setBullet(value);
-    setDirty(value !== (article.bullet || ''));
+  async function handleAddMarket(newMarket: string) {
+    if (!newMarket || additionalMarkets.includes(newMarket) || newMarket === market) {
+      setShowAddMarket(false);
+      return;
+    }
+
+    try {
+      const email = getUserEmail();
+      const updated = await addArticleMarket(article.id, article.is_first_party || false, newMarket, email || undefined);
+      setAdditionalMarkets(updated);
+      setShowAddMarket(false);
+      onUpdate();
+    } catch (err) {
+      alert('Failed to add market: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  }
+
+  async function handleRemoveMarket(marketToRemove: string) {
+    try {
+      const email = getUserEmail();
+      const updated = await removeArticleMarket(article.id, article.is_first_party || false, marketToRemove, email || undefined);
+      setAdditionalMarkets(updated);
+      onUpdate();
+    } catch (err) {
+      alert('Failed to remove market: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
   }
 
   const publishedDate = article.published_at
     ? new Date(article.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : '';
 
+  // Get available markets for adding (exclude current market and already added)
+  const availableMarkets = MARKET_OPTIONS.filter(
+    m => m !== 'All' && m !== market && !additionalMarkets.includes(m)
+  );
+
   return (
     <div
       className="article-card"
-      style={{ borderLeftColor: PRIORITY_COLORS[priority] }}
+      style={{ borderLeftColor: priorityOption.color }}
     >
       <div className="article-header">
-        <span
-          className="priority-badge"
-          style={{ backgroundColor: PRIORITY_COLORS[priority] }}
+        <select
+          className="priority-select"
+          value={priority}
+          onChange={(e) => setPriority(Number(e.target.value))}
+          style={{ backgroundColor: priorityOption.color }}
         >
-          {PRIORITY_LABELS[priority]}
-        </span>
+          {PRIORITY_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+
         {publishedDate && <span className="date">{publishedDate}</span>}
         {article.is_first_party && <span className="official-badge">OFFICIAL</span>}
-        {article.market && <span className="market-badge">{article.market}</span>}
+
+        <select
+          className="market-select"
+          value={market}
+          onChange={(e) => setMarket(e.target.value)}
+        >
+          <option value="">No Market</option>
+          {MARKET_OPTIONS.filter(m => m !== 'All').map(m => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+
+        <button
+          className="add-market-btn"
+          onClick={() => setShowAddMarket(!showAddMarket)}
+          title="Add additional market"
+        >
+          +
+        </button>
+
         {article.location && <span className="location">{article.location}</span>}
       </div>
+
+      {/* Additional markets row */}
+      {(additionalMarkets.length > 0 || showAddMarket) && (
+        <div className="additional-markets">
+          {additionalMarkets.map(m => (
+            <span key={m} className="additional-market-badge">
+              {m}
+              <button
+                className="remove-market-btn"
+                onClick={() => handleRemoveMarket(m)}
+                title="Remove market"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {showAddMarket && (
+            <select
+              className="add-market-select"
+              onChange={(e) => handleAddMarket(e.target.value)}
+              defaultValue=""
+              autoFocus
+            >
+              <option value="">Select market...</option>
+              {availableMarkets.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       <h3 className="article-title">
         <a href={article.url} target="_blank" rel="noopener noreferrer">
@@ -94,7 +199,7 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
       <textarea
         className="bullet-input"
         value={bullet}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => setBullet(e.target.value)}
         placeholder="Enter bullet summary..."
         rows={3}
       />
@@ -109,7 +214,7 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
             {processing ? 'Processing...' : 'Process with AI'}
           </button>
         )}
-        {dirty && (
+        {isDirty && (
           <button
             className="save-button"
             onClick={handleSave}

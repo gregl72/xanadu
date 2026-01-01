@@ -15,6 +15,7 @@ const MARKETS: Record<string, { lat: number; lon: number }> = {
   "Dodge City": { lat: 37.7528, lon: -100.0171 },
   "Great Bend": { lat: 38.3645, lon: -98.7648 },
   "McPherson": { lat: 38.3706, lon: -97.6642 },
+  "Newton": { lat: 38.0467, lon: -97.3453 },
   "Salina": { lat: 38.8403, lon: -97.6114 },
   "Hutchinson": { lat: 38.0608, lon: -97.9298 },
   "Abilene": { lat: 38.9172, lon: -97.2139 },

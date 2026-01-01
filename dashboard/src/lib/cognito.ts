@@ -74,3 +74,9 @@ export function signOut(): void {
     user.signOut();
   }
 }
+
+export function getUserEmail(): string | null {
+  const user = getCurrentUser();
+  if (!user) return null;
+  return user.getUsername();
+}
