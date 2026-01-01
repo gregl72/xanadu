@@ -6,12 +6,14 @@ import { Login } from './components/Login';
 import { MarketFilter } from './components/MarketFilter';
 import { ArticleList } from './components/ArticleList';
 import { WeatherCard } from './components/WeatherCard';
+import { AddArticleForm } from './components/AddArticleForm';
 import './App.css';
 
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [market, setMarket] = useState('All');
   const [showDiscarded, setShowDiscarded] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const { articles, loading, error, refetch } = useArticles(
     market === 'All' ? null : market,
@@ -50,9 +52,14 @@ function App() {
     <div className="app">
       <header className="header">
         <h1>Xanadu Admin</h1>
-        <button className="logout-button" onClick={handleLogout}>
-          Sign Out
-        </button>
+        <div className="header-actions">
+          <button className="add-article-button" onClick={() => setShowAddForm(true)}>
+            + Add Article
+          </button>
+          <button className="logout-button" onClick={handleLogout}>
+            Sign Out
+          </button>
+        </div>
       </header>
 
       <div className="filters">
@@ -81,6 +88,13 @@ function App() {
         error={error}
         onUpdate={refetch}
       />
+
+      {showAddForm && (
+        <AddArticleForm
+          onClose={() => setShowAddForm(false)}
+          onCreated={refetch}
+        />
+      )}
     </div>
   );
 }

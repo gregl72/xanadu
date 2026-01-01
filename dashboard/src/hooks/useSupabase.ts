@@ -267,3 +267,61 @@ export async function discardArticle(
 ): Promise<Article> {
   return updateArticle(id, isFirstParty, { discarded: discard }, userEmail);
 }
+
+export interface CreateArticleData {
+  title?: string;
+  url?: string;
+  content?: string;
+  bullet?: string;
+  priority?: number;
+  market?: string;
+  location?: string;
+  is_first_party: boolean;
+  user_email?: string;
+}
+
+export async function createArticle(data: CreateArticleData): Promise<Article> {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/create-article`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Failed to create article');
+  }
+
+  return response.json();
+}
+
+export interface ProcessedArticle {
+  title: string;
+  content: string;
+  bullet: string;
+  priority: number;
+  location: string;
+  market: string;
+  is_local: boolean;
+}
+
+export async function processArticleUrl(url: string): Promise<ProcessedArticle> {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/process-article-url`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Failed to process URL');
+  }
+
+  return response.json();
+}
