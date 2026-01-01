@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase';
 import type { Article, Weather } from '../lib/supabase';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export function useArticles(market: string | null, hours: number) {
+export function useArticles(market: string | null, showDiscarded: boolean) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,25 +14,35 @@ export function useArticles(market: string | null, hours: number) {
     setLoading(true);
     setError(null);
 
-    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-
     try {
+      // Build queries based on showDiscarded flag
+      let newsQuery = supabase
+        .from('articles')
+        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded')
+        .eq('is_local', true)
+        .eq('is_accessible', true);
+
+      let firstPartyQuery = supabase
+        .from('first_party_articles')
+        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded')
+        .eq('is_local', true)
+        .eq('is_accessible', true);
+
+      // Filter by discarded status
+      if (showDiscarded) {
+        newsQuery = newsQuery.eq('discarded', true);
+        firstPartyQuery = firstPartyQuery.eq('discarded', true);
+      } else {
+        newsQuery = newsQuery.or('discarded.is.null,discarded.eq.false');
+        firstPartyQuery = firstPartyQuery.or('discarded.is.null,discarded.eq.false');
+      }
+
       // Fetch from both articles and first_party_articles
       const [newsResult, firstPartyResult, marketsResult] = await Promise.all([
-        supabase
-          .from('articles')
-          .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at')
-          .eq('is_local', true)
-          .eq('is_accessible', true)
-          .gte('fetched_at', since)
+        newsQuery
           .order('priority', { ascending: false })
           .order('published_at', { ascending: false }),
-        supabase
-          .from('first_party_articles')
-          .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at')
-          .eq('is_local', true)
-          .eq('is_accessible', true)
-          .gte('fetched_at', since)
+        firstPartyQuery
           .order('priority', { ascending: false })
           .order('published_at', { ascending: false }),
         supabase
@@ -77,6 +88,19 @@ export function useArticles(market: string | null, hours: number) {
         );
       }
 
+      // For non-discarded view: filter priority 1/2 to only last 24h
+      if (!showDiscarded) {
+        combined = combined.filter(a => {
+          const priority = a.priority || 3;
+          // Priority 3/4/5: show all
+          if (priority >= 3) return true;
+          // Priority 1/2: only show if fetched within 24h
+          const fetchedAt = new Date(a.fetched_at).getTime();
+          const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+          return fetchedAt >= twentyFourHoursAgo;
+        });
+      }
+
       // Sort by priority desc, then published_at desc
       combined.sort((a, b) => {
         const pDiff = (b.priority || 3) - (a.priority || 3);
@@ -90,7 +114,7 @@ export function useArticles(market: string | null, hours: number) {
     } finally {
       setLoading(false);
     }
-  }, [market, hours]);
+  }, [market, showDiscarded]);
 
   useEffect(() => {
     fetchArticles();
@@ -138,7 +162,7 @@ export async function updateArticleBullet(
 export async function updateArticle(
   id: number,
   isFirstParty: boolean,
-  changes: { priority?: number; market?: string; bullet?: string },
+  changes: { priority?: number; market?: string; bullet?: string; discarded?: boolean },
   userEmail?: string
 ): Promise<Article> {
   const table = isFirstParty ? 'first_party_articles' : 'articles';
@@ -147,6 +171,7 @@ export async function updateArticle(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify({ id, table, changes, user_email: userEmail }),
   });
@@ -171,6 +196,7 @@ export async function addArticleMarket(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify({ id, table, action: 'add', market, user_email: userEmail }),
   });
@@ -196,6 +222,7 @@ export async function removeArticleMarket(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify({ id, table, action: 'remove', market, user_email: userEmail }),
   });
@@ -219,6 +246,7 @@ export async function processArticle(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify({ id, table }),
   });
@@ -229,4 +257,13 @@ export async function processArticle(
   }
 
   return response.json();
+}
+
+export async function discardArticle(
+  id: number,
+  isFirstParty: boolean,
+  discard: boolean,
+  userEmail?: string
+): Promise<Article> {
+  return updateArticle(id, isFirstParty, { discarded: discard }, userEmail);
 }

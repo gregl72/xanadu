@@ -4,7 +4,6 @@ import { WEATHER_CITIES } from './lib/markets';
 import { useArticles, useWeather } from './hooks/useSupabase';
 import { Login } from './components/Login';
 import { MarketFilter } from './components/MarketFilter';
-import { TimeFilter } from './components/TimeFilter';
 import { ArticleList } from './components/ArticleList';
 import { WeatherCard } from './components/WeatherCard';
 import './App.css';
@@ -12,11 +11,11 @@ import './App.css';
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [market, setMarket] = useState('All');
-  const [hours, setHours] = useState(24);
+  const [showDiscarded, setShowDiscarded] = useState(false);
 
   const { articles, loading, error, refetch } = useArticles(
     market === 'All' ? null : market,
-    hours
+    showDiscarded
   );
   const { weather } = useWeather();
 
@@ -58,7 +57,14 @@ function App() {
 
       <div className="filters">
         <MarketFilter selected={market} onChange={setMarket} />
-        <TimeFilter selected={hours} onChange={setHours} />
+        <label className="show-discarded-toggle">
+          <input
+            type="checkbox"
+            checked={showDiscarded}
+            onChange={(e) => setShowDiscarded(e.target.checked)}
+          />
+          Show Discarded
+        </label>
       </div>
 
       {selectedWeather && (

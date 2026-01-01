@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Article } from '../lib/supabase';
-import { updateArticle, addArticleMarket, removeArticleMarket, processArticle } from '../hooks/useSupabase';
+import { updateArticle, addArticleMarket, removeArticleMarket, processArticle, discardArticle } from '../hooks/useSupabase';
 import { MARKETS } from '../lib/markets';
 import { getUserEmail } from '../lib/cognito';
 
@@ -26,6 +26,7 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
   const [additionalMarkets, setAdditionalMarkets] = useState<string[]>(article.additional_markets || []);
   const [saving, setSaving] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const [showAddMarket, setShowAddMarket] = useState(false);
 
   const priorityOption = PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[2];
@@ -105,6 +106,20 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
       onUpdate();
     } catch (err) {
       alert('Failed to remove market: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  }
+
+  async function handleDiscard() {
+    setDiscarding(true);
+    try {
+      const email = getUserEmail();
+      const shouldDiscard = !article.discarded;
+      await discardArticle(article.id, article.is_first_party || false, shouldDiscard, email || undefined);
+      onUpdate();
+    } catch (err) {
+      alert('Failed to ' + (article.discarded ? 'restore' : 'discard') + ': ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setDiscarding(false);
     }
   }
 
@@ -223,6 +238,13 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
             {saving ? 'Saving...' : 'Save'}
           </button>
         )}
+        <button
+          className={article.discarded ? 'undo-button' : 'discard-button'}
+          onClick={handleDiscard}
+          disabled={discarding}
+        >
+          {discarding ? '...' : (article.discarded ? 'Undo' : 'Discard')}
+        </button>
       </div>
     </div>
   );

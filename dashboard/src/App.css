@@ -278,6 +278,60 @@ body {
   cursor: not-allowed;
 }
 
+.discard-button {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.discard-button:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.discard-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.undo-button {
+  background: #ffc107;
+  color: #212529;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.undo-button:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+.undo-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Show Discarded Toggle */
+.show-discarded-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.show-discarded-toggle input {
+  cursor: pointer;
+}
+
 /* Priority and Market Selects */
 .priority-select {
   color: white;

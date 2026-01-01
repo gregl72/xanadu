@@ -18,6 +18,7 @@ export interface Article {
   fetched_at: string;
   is_first_party?: boolean;
   additional_markets?: string[];
+  discarded?: boolean;
 }
 
 export interface Weather {

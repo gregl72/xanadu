@@ -12,6 +12,7 @@ interface UpdateRequest {
     priority?: number;
     market?: string;
     bullet?: string;
+    discarded?: boolean;
   };
   user_email?: string;
 }
@@ -155,7 +156,7 @@ Deno.serve(async (req) => {
     // Fetch current values for logging
     const { data: current, error: fetchError } = await supabase
       .from(table)
-      .select("priority, market, bullet")
+      .select("priority, market, bullet, discarded")
       .eq("id", id)
       .single();
 
