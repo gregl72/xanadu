@@ -343,3 +343,67 @@ export async function processArticleUrl(url: string): Promise<ProcessedArticle> 
 
   return response.json();
 }
+
+// Publication Status
+export interface PublicationStatus {
+  market: string;
+  date: string;
+  completed: boolean;
+  completed_at: string | null;
+  completed_by: string | null;
+}
+
+export function usePublicationStatus(date: string) {
+  const [statuses, setStatuses] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+
+  const fetchStatuses = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('publication_status')
+        .select('market, completed')
+        .eq('date', date);
+
+      if (error) throw error;
+
+      const statusMap: Record<string, boolean> = {};
+      for (const row of data || []) {
+        statusMap[row.market] = row.completed;
+      }
+      setStatuses(statusMap);
+    } catch (err) {
+      console.error('Failed to fetch publication status:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [date]);
+
+  useEffect(() => {
+    fetchStatuses();
+  }, [fetchStatuses]);
+
+  return { statuses, loading, refetch: fetchStatuses };
+}
+
+export async function togglePublicationStatus(
+  market: string,
+  date: string,
+  completed: boolean,
+  userEmail?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('publication_status')
+    .upsert(
+      {
+        market,
+        date,
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+        completed_by: completed ? userEmail : null,
+      },
+      { onConflict: 'market,date' }
+    );
+
+  if (error) throw error;
+}

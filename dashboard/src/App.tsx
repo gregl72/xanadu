@@ -9,11 +9,15 @@ import { ArticleList } from './components/ArticleList';
 import { WeatherCard } from './components/WeatherCard';
 import { AddArticleForm } from './components/AddArticleForm';
 import { PublishedSection } from './components/PublishedSection';
+import { PublicationStatus } from './components/PublicationStatus';
 import type { Article } from './lib/supabase';
 import './App.css';
 
+type View = 'articles' | 'status';
+
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [view, setView] = useState<View>('articles');
   const [market, setMarket] = useState('All');
   const [showDiscarded, setShowDiscarded] = useState(false);
   const [showUsed, setShowUsed] = useState(false);
@@ -83,61 +87,84 @@ function App() {
       <header className="header">
         <h1>Xanadu Admin</h1>
         <div className="header-actions">
-          <button className="add-article-button" onClick={() => setShowAddForm(true)}>
-            + Add Article
-          </button>
+          {view === 'articles' && (
+            <button className="add-article-button" onClick={() => setShowAddForm(true)}>
+              + Add Article
+            </button>
+          )}
           <button className="logout-button" onClick={handleLogout}>
             Sign Out
           </button>
         </div>
       </header>
 
-      <div className="filters">
-        <MarketFilter selected={market} onChange={setMarket} />
-        <label className="show-discarded-toggle">
-          <input
-            type="checkbox"
-            checked={showDiscarded}
-            onChange={(e) => setShowDiscarded(e.target.checked)}
-          />
-          Show Discarded
-        </label>
-        <label className="show-discarded-toggle">
-          <input
-            type="checkbox"
-            checked={showUsed}
-            onChange={(e) => setShowUsed(e.target.checked)}
-          />
-          Show Used
-        </label>
+      <div className="view-toggle">
+        <button
+          className={`view-button ${view === 'articles' ? 'active' : ''}`}
+          onClick={() => setView('articles')}
+        >
+          Articles
+        </button>
+        <button
+          className={`view-button ${view === 'status' ? 'active' : ''}`}
+          onClick={() => setView('status')}
+        >
+          Status
+        </button>
       </div>
 
-      <PublishedSection
-        articles={publishedArticles}
-        onRemove={handleUnpublish}
-      />
+      {view === 'status' ? (
+        <PublicationStatus />
+      ) : (
+        <>
+          <div className="filters">
+            <MarketFilter selected={market} onChange={setMarket} />
+            <label className="show-discarded-toggle">
+              <input
+                type="checkbox"
+                checked={showDiscarded}
+                onChange={(e) => setShowDiscarded(e.target.checked)}
+              />
+              Show Discarded
+            </label>
+            <label className="show-discarded-toggle">
+              <input
+                type="checkbox"
+                checked={showUsed}
+                onChange={(e) => setShowUsed(e.target.checked)}
+              />
+              Show Used
+            </label>
+          </div>
 
-      {selectedWeather && (
-        <WeatherCard weather={selectedWeather} />
-      )}
+          <PublishedSection
+            articles={publishedArticles}
+            onRemove={handleUnpublish}
+          />
 
-      <div className="stats">
-        {articles.length} article{articles.length !== 1 ? 's' : ''} found
-      </div>
+          {selectedWeather && (
+            <WeatherCard weather={selectedWeather} />
+          )}
 
-      <ArticleList
-        articles={articles}
-        loading={loading}
-        error={error}
-        onUpdate={refetch}
-        onPublish={!showUsed && !showDiscarded ? handlePublish : undefined}
-      />
+          <div className="stats">
+            {articles.length} article{articles.length !== 1 ? 's' : ''} found
+          </div>
 
-      {showAddForm && (
-        <AddArticleForm
-          onClose={() => setShowAddForm(false)}
-          onCreated={refetch}
-        />
+          <ArticleList
+            articles={articles}
+            loading={loading}
+            error={error}
+            onUpdate={refetch}
+            onPublish={!showUsed && !showDiscarded ? handlePublish : undefined}
+          />
+
+          {showAddForm && (
+            <AddArticleForm
+              onClose={() => setShowAddForm(false)}
+              onCreated={refetch}
+            />
+          )}
+        </>
       )}
     </div>
   );

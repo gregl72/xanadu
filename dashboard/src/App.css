@@ -905,6 +905,152 @@ body {
   opacity: 1;
 }
 
+/* View Toggle */
+.view-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+}
+
+.view-button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #333;
+  background: white;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.view-button:first-child {
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+
+.view-button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.view-button:hover:not(.active) {
+  background: #f0f0f0;
+}
+
+.view-button.active {
+  background: #333;
+  color: white;
+}
+
+/* Publication Status */
+.publication-status {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.date-toggle {
+  display: flex;
+  gap: 0;
+}
+
+.date-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #007bff;
+  background: white;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #007bff;
+  transition: all 0.2s;
+}
+
+.date-button:first-child {
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+
+.date-button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.date-button:hover:not(.active) {
+  background: #e7f1ff;
+}
+
+.date-button.active {
+  background: #007bff;
+  color: white;
+}
+
+.status-summary {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.market-status-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.market-status-card:hover {
+  border-color: #999;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.market-status-card.complete {
+  border-color: #28a745;
+  background: #f0fff4;
+}
+
+.market-status-card.incomplete {
+  border-color: #dc3545;
+  background: #fff5f5;
+}
+
+.status-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-indicator.green {
+  background: #28a745;
+}
+
+.status-indicator.red {
+  background: #dc3545;
+}
+
+.market-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #333;
+}
+
 @media (max-width: 600px) {
   .header-actions {
     flex-direction: column;
