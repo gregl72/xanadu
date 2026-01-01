@@ -10,8 +10,10 @@ export interface Article {
   title: string;
   bullet: string | null;
   location: string | null;
+  market: string | null;
   priority: number | null;
   url: string;
+  content: string | null;
   published_at: string | null;
   fetched_at: string;
   is_first_party?: boolean;

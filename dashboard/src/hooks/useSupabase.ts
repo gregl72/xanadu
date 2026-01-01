@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Article, Weather } from '../lib/supabase';
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
 export function useArticles(market: string | null, hours: number) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +20,7 @@ export function useArticles(market: string | null, hours: number) {
       const [newsResult, firstPartyResult] = await Promise.all([
         supabase
           .from('articles')
-          .select('id, title, bullet, location, priority, url, published_at, fetched_at')
+          .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at')
           .eq('is_local', true)
           .eq('is_accessible', true)
           .gte('fetched_at', since)
@@ -26,7 +28,7 @@ export function useArticles(market: string | null, hours: number) {
           .order('published_at', { ascending: false }),
         supabase
           .from('first_party_articles')
-          .select('id, title, bullet, location, priority, url, published_at, fetched_at')
+          .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at')
           .eq('is_local', true)
           .eq('is_accessible', true)
           .gte('fetched_at', since)
@@ -45,9 +47,8 @@ export function useArticles(market: string | null, hours: number) {
 
       // Filter by market if selected
       if (market && market !== 'All') {
-        combined = combined.filter(a => a.location === market ||
-          // Also check if location maps to this market (simplified matching)
-          (market === 'At Large' && !a.location));
+        combined = combined.filter(a => a.market === market ||
+          (market === 'At Large' && !a.market));
       }
 
       // Sort by priority desc, then published_at desc
@@ -106,4 +107,26 @@ export async function updateArticleBullet(
     .eq('id', id);
 
   if (error) throw error;
+}
+
+export async function processArticle(
+  id: number,
+  isFirstParty: boolean
+): Promise<Article> {
+  const table = isFirstParty ? 'first_party_articles' : 'articles';
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/process-article`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id, table }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Failed to process article');
+  }
+
+  return response.json();
 }
