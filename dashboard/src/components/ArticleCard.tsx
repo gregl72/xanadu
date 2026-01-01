@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import type { Article } from '../lib/supabase';
-import { updateArticle, addArticleMarket, removeArticleMarket, processArticle, discardArticle } from '../hooks/useSupabase';
+import { updateArticle, addArticleMarket, removeArticleMarket, processArticle, discardArticle, publishArticle } from '../hooks/useSupabase';
 import { MARKETS } from '../lib/markets';
 import { getUserEmail } from '../lib/cognito';
 
 interface ArticleCardProps {
   article: Article;
   onUpdate: () => void;
+  onPublish?: (article: Article) => void;
 }
 
 const PRIORITY_OPTIONS = [
@@ -19,7 +20,7 @@ const PRIORITY_OPTIONS = [
 
 const MARKET_OPTIONS = ['All', ...MARKETS];
 
-export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
+export function ArticleCard({ article, onUpdate, onPublish }: ArticleCardProps) {
   const [bullet, setBullet] = useState(article.bullet || '');
   const [priority, setPriority] = useState(article.priority || 3);
   const [market, setMarket] = useState(article.market || '');
@@ -27,6 +28,7 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
   const [saving, setSaving] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [showAddMarket, setShowAddMarket] = useState(false);
 
   const priorityOption = PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[2];
@@ -120,6 +122,23 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
       alert('Failed to ' + (article.discarded ? 'restore' : 'discard') + ': ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setDiscarding(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (!onPublish) return;
+
+    setPublishing(true);
+    try {
+      const email = getUserEmail();
+      await publishArticle(article.id, article.is_first_party || false, true, email || undefined);
+      // Pass the article with current bullet value to the published section
+      onPublish({ ...article, bullet: bullet || article.bullet });
+      onUpdate();
+    } catch (err) {
+      alert('Failed to publish: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -236,6 +255,15 @@ export function ArticleCard({ article, onUpdate }: ArticleCardProps) {
             disabled={saving}
           >
             {saving ? 'Saving...' : 'Save'}
+          </button>
+        )}
+        {onPublish && (
+          <button
+            className="publish-button"
+            onClick={handlePublish}
+            disabled={publishing}
+          >
+            {publishing ? 'Publishing...' : 'Publish'}
           </button>
         )}
         <button

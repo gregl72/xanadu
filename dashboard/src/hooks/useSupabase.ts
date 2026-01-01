@@ -5,7 +5,7 @@ import type { Article, Weather } from '../lib/supabase';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export function useArticles(market: string | null, showDiscarded: boolean) {
+export function useArticles(market: string | null, showDiscarded: boolean, showUsed: boolean = false) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,16 +15,16 @@ export function useArticles(market: string | null, showDiscarded: boolean) {
     setError(null);
 
     try {
-      // Build queries based on showDiscarded flag
+      // Build queries based on showDiscarded and showUsed flags
       let newsQuery = supabase
         .from('articles')
-        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded')
+        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded, used')
         .eq('is_local', true)
         .eq('is_accessible', true);
 
       let firstPartyQuery = supabase
         .from('first_party_articles')
-        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded')
+        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded, used')
         .eq('is_local', true)
         .eq('is_accessible', true);
 
@@ -35,6 +35,15 @@ export function useArticles(market: string | null, showDiscarded: boolean) {
       } else {
         newsQuery = newsQuery.or('discarded.is.null,discarded.eq.false');
         firstPartyQuery = firstPartyQuery.or('discarded.is.null,discarded.eq.false');
+      }
+
+      // Filter by used status
+      if (showUsed) {
+        newsQuery = newsQuery.eq('used', true);
+        firstPartyQuery = firstPartyQuery.eq('used', true);
+      } else {
+        newsQuery = newsQuery.or('used.is.null,used.eq.false');
+        firstPartyQuery = firstPartyQuery.or('used.is.null,used.eq.false');
       }
 
       // Fetch from both articles and first_party_articles
@@ -114,7 +123,7 @@ export function useArticles(market: string | null, showDiscarded: boolean) {
     } finally {
       setLoading(false);
     }
-  }, [market, showDiscarded]);
+  }, [market, showDiscarded, showUsed]);
 
   useEffect(() => {
     fetchArticles();
@@ -162,7 +171,7 @@ export async function updateArticleBullet(
 export async function updateArticle(
   id: number,
   isFirstParty: boolean,
-  changes: { priority?: number; market?: string; bullet?: string; discarded?: boolean },
+  changes: { priority?: number; market?: string; bullet?: string; discarded?: boolean; used?: boolean },
   userEmail?: string
 ): Promise<Article> {
   const table = isFirstParty ? 'first_party_articles' : 'articles';
@@ -266,6 +275,15 @@ export async function discardArticle(
   userEmail?: string
 ): Promise<Article> {
   return updateArticle(id, isFirstParty, { discarded: discard }, userEmail);
+}
+
+export async function publishArticle(
+  id: number,
+  isFirstParty: boolean,
+  publish: boolean,
+  userEmail?: string
+): Promise<Article> {
+  return updateArticle(id, isFirstParty, { used: publish }, userEmail);
 }
 
 export interface CreateArticleData {

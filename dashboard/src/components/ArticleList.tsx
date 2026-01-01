@@ -6,9 +6,10 @@ interface ArticleListProps {
   loading: boolean;
   error: string | null;
   onUpdate: () => void;
+  onPublish?: (article: Article) => void;
 }
 
-export function ArticleList({ articles, loading, error, onUpdate }: ArticleListProps) {
+export function ArticleList({ articles, loading, error, onUpdate, onPublish }: ArticleListProps) {
   if (loading) {
     return <div className="loading">Loading articles...</div>;
   }
@@ -28,6 +29,7 @@ export function ArticleList({ articles, loading, error, onUpdate }: ArticleListP
           key={`${article.is_first_party ? 'fp' : 'news'}-${article.id}`}
           article={article}
           onUpdate={onUpdate}
+          onPublish={onPublish}
         />
       ))}
     </div>
