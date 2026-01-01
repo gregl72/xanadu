@@ -59,6 +59,14 @@ function App() {
   }
 
   async function handleUnpublish(article: Article) {
+    // Weather items have negative IDs and don't need database updates
+    if (article.id < 0) {
+      setPublishedArticles(prev =>
+        prev.filter(a => a.id !== article.id)
+      );
+      return;
+    }
+
     try {
       const email = getUserEmail();
       await publishArticle(article.id, article.is_first_party || false, false, email || undefined);
@@ -70,6 +78,25 @@ function App() {
     } catch (err) {
       alert('Failed to unpublish: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
+  }
+
+  function handlePublishWeather(bullet: string) {
+    // Strip leading bullet point characters if present
+    const cleanBullet = bullet.replace(/^[\u2022\u2023\u25E6\u2043\u2219•\-\*]\s*/, '');
+    // Create a fake article for weather (negative ID to distinguish)
+    const weatherArticle: Article = {
+      id: -Date.now(),
+      title: 'Weather',
+      bullet: cleanBullet,
+      url: '',
+      location: null,
+      market: null,
+      priority: null,
+      content: null,
+      published_at: null,
+      fetched_at: new Date().toISOString(),
+    };
+    setPublishedArticles(prev => [...prev, weatherArticle]);
   }
 
   // Show loading while checking auth
@@ -143,7 +170,7 @@ function App() {
           />
 
           {selectedWeather && (
-            <WeatherCard weather={selectedWeather} />
+            <WeatherCard weather={selectedWeather} onPublish={handlePublishWeather} />
           )}
 
           <div className="stats">
