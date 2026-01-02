@@ -388,6 +388,7 @@ SCRAPERS = {
     "salinapost.com": scrape_post_site,
     "hayspost.com": scrape_post_site,
     "greatbendpost.com": scrape_post_site,
+    "jcpost.com": scrape_post_site,
     # Arc Publishing sites
     "kwch.com": scrape_arc_site,
     "wibw.com": scrape_arc_site,
