@@ -38,6 +38,10 @@ def fetch_feed(source: dict) -> list[dict]:
     if not rss_url:
         return []
 
+    # Skip scrape sources (handled by scrape_articles.py)
+    if rss_url.startswith("scrape:"):
+        return []
+
     try:
         feed = feedparser.parse(rss_url)
     except Exception as e:

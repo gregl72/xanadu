@@ -1,9 +1,9 @@
-name: Nightly Digest
+name: Fetch & Digest
 
 on:
   schedule:
-    # Run at 3 AM Central Time (09:00 UTC)
-    - cron: '0 9 * * *'
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -39,6 +39,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python fetch_first_party_articles.py
+
+      - name: Scrape articles (non-RSS sources)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python scrape_articles.py
 
       - name: Analyze first party articles
         env:
