@@ -154,6 +154,8 @@ def scrape_littleapplepost(source: dict) -> list[dict]:
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "location": location,
             "market": market,
+            "is_local": True,
+            "is_accessible": True,
         })
 
     return articles
