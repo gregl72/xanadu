@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
     for (let i = 0; i < topics.length; i++) {
       const topic = topics[i];
       // Use fragment to make URL unique for multiple topics
-      const topicUrl = topics.length > 1 ? `${url}#topic-${i + 1}` : url;
+      const topicUrl = topics.length > 1 ? `${url}?topic=${i + 1}` : url;
 
       // Calculate market from location
       const market = await getMarket(topic.location);
