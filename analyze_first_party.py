@@ -7,6 +7,8 @@ import anthropic
 from dotenv import load_dotenv
 from supabase import create_client
 
+from markets import get_market
+
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -117,7 +119,10 @@ def main():
         # Analyze with Claude
         analysis = analyze_article(client, title, content, source_city)
 
-        print(f"    {analysis['location']} | P{analysis['priority']} | {'✓' if is_accessible else '✗'}")
+        # Calculate market from location
+        market = get_market(analysis["location"])
+
+        print(f"    {analysis['location']} -> {market} | P{analysis['priority']} | {'✓' if is_accessible else '✗'}")
 
         # Update database
         supabase.table("first_party_articles").update({
@@ -126,6 +131,7 @@ def main():
             "bullet": analysis["bullet"],
             "priority": analysis["priority"],
             "is_accessible": is_accessible,
+            "market": market,
         }).eq("id", article["id"]).execute()
 
         time.sleep(0.3)

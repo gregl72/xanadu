@@ -7,6 +7,8 @@ import anthropic
 from dotenv import load_dotenv
 from supabase import create_client
 
+from markets import get_market
+
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -92,12 +94,16 @@ def main():
 
         location, is_local = analyze_article(client, title, content, source_city)
 
-        print(f"    Location: {location}, Local: {is_local}")
+        # Calculate market from location
+        market = get_market(location) if location else "At Large"
+
+        print(f"    Location: {location} -> Market: {market}, Local: {is_local}")
 
         # Update database
         supabase.table("articles").update({
             "location": location,
-            "is_local": is_local
+            "is_local": is_local,
+            "market": market,
         }).eq("id", article["id"]).execute()
 
         # Rate limit (avoid hitting API limits)
