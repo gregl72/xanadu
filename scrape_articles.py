@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from supabase import create_client
 
+from markets import get_market
+
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -139,6 +141,10 @@ def scrape_littleapplepost(source: dict) -> list[dict]:
         # Extract content
         content = extract_content(page)
 
+        # Use source city as default location/market
+        location = source.get("city", "Kansas")
+        market = get_market(location)
+
         articles.append({
             "source_id": source["id"],
             "title": title,
@@ -146,6 +152,8 @@ def scrape_littleapplepost(source: dict) -> list[dict]:
             "content": content,
             "published_at": published_at.isoformat() if published_at else None,
             "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "location": location,
+            "market": market,
         })
 
     return articles
