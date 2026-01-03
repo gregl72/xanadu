@@ -113,11 +113,13 @@ export function ArticleCard({ article, onUpdate, onPublish }: ArticleCardProps) 
 
   async function handleDiscard() {
     setDiscarding(true);
+    const scrollY = window.scrollY;
     try {
       const email = getUserEmail();
       const shouldDiscard = !article.discarded;
       await discardArticle(article.id, article.is_first_party || false, shouldDiscard, email || undefined);
-      onUpdate();
+      await onUpdate();
+      window.scrollTo(0, scrollY);
     } catch (err) {
       alert('Failed to ' + (article.discarded ? 'restore' : 'discard') + ': ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
