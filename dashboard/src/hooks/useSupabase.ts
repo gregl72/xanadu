@@ -97,16 +97,24 @@ export function useArticles(market: string | null, showDiscarded: boolean, showU
         );
       }
 
-      // For non-discarded view: filter priority 1/2/3 to only last 24h
+      // For non-discarded view: filter stale articles
       if (!showDiscarded) {
+        const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
         combined = combined.filter(a => {
-          const priority = a.priority || 3;
-          // Priority 4/5: show all
-          if (priority >= 4) return true;
-          // Priority 1/2/3: only show if published within 24h
           const publishedAt = new Date(a.published_at || a.fetched_at).getTime();
-          const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-          return publishedAt >= twentyFourHoursAgo;
+          const isRecent = publishedAt >= twentyFourHoursAgo;
+
+          // At Large: always stale after 24h regardless of priority
+          if (a.market === 'At Large' || !a.market) {
+            return isRecent;
+          }
+
+          // Priority 4/5: show all
+          const priority = a.priority || 3;
+          if (priority >= 4) return true;
+
+          // Priority 1/2/3: only show if published within 24h
+          return isRecent;
         });
       }
 
