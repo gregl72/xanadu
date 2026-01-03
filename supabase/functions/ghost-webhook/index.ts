@@ -166,20 +166,21 @@ Set is_local to false only if the topic is NOT about Kansas.`;
     const parsed = JSON.parse(response);
     if (parsed.topics && Array.isArray(parsed.topics) && parsed.topics.length > 0) {
       // Validate and sanitize each topic
+      // Ghost articles get minimum priority 4
       return parsed.topics.map((t: Partial<Topic>) => ({
         title: t.title || title,
         location: t.location || defaultCity,
         is_local: t.is_local !== false,
         bullet: t.bullet || "",
-        priority: (t.priority && t.priority >= 1 && t.priority <= 5) ? t.priority : 3,
+        priority: (t.priority && t.priority >= 1 && t.priority <= 5) ? Math.max(t.priority, 4) : 4,
       }));
     }
 
-    // Fallback if parsing fails
-    return [{ title, location: defaultCity, is_local: true, bullet: "", priority: 3 }];
+    // Fallback if parsing fails - Ghost articles default to priority 4
+    return [{ title, location: defaultCity, is_local: true, bullet: "", priority: 4 }];
   } catch (error) {
     console.error("Claude analysis error:", error);
-    return [{ title, location: defaultCity, is_local: true, bullet: "", priority: 3 }];
+    return [{ title, location: defaultCity, is_local: true, bullet: "", priority: 4 }];
   }
 }
 
