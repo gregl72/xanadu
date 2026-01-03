@@ -225,6 +225,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Skip posts with excluded tags (briefs link to standalone articles, obit/jail not needed)
+    const EXCLUDED_TAGS = ['brief', 'obit', 'jail'];
+    const tags = post.tags || [];
+    const hasExcludedTag = tags.some((tag: { slug?: string; name?: string }) => {
+      const slug = tag.slug?.toLowerCase() || '';
+      const name = tag.name?.toLowerCase().replace('#', '') || '';
+      return EXCLUDED_TAGS.includes(slug) || EXCLUDED_TAGS.includes(name);
+    });
+    if (hasExcludedTag) {
+      console.log("Skipping post with excluded tag:", post.title);
+      return new Response(JSON.stringify({ status: "skipped", reason: "excluded tag" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const title = post.title;
     const url = post.url;
     const content = post.html || post.plaintext || "";
