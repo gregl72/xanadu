@@ -119,7 +119,8 @@ export function ArticleCard({ article, onUpdate, onPublish }: ArticleCardProps) 
       const shouldDiscard = !article.discarded;
       await discardArticle(article.id, article.is_first_party || false, shouldDiscard, email || undefined);
       await onUpdate();
-      window.scrollTo(0, scrollY);
+      // Delay scroll restore to let React re-render complete
+      setTimeout(() => window.scrollTo(0, scrollY), 100);
     } catch (err) {
       alert('Failed to ' + (article.discarded ? 'restore' : 'discard') + ': ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
