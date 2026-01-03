@@ -12,8 +12,6 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from supabase import create_client
 
-from markets import get_market
-
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -164,10 +162,7 @@ def scrape_post_site(source: dict) -> list[dict]:
         # Extract content
         content = extract_content(page)
 
-        # Use source city as default location/market
-        location = source.get("city", "Kansas")
-        market = get_market(location)
-
+        # Don't set location/market/is_local - let analyze_articles.py determine from content
         articles.append({
             "source_id": source["id"],
             "title": title,
@@ -175,9 +170,6 @@ def scrape_post_site(source: dict) -> list[dict]:
             "content": content,
             "published_at": published_at.isoformat() if published_at else None,
             "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "location": location,
-            "market": market,
-            "is_local": True,
             "is_accessible": True,
         })
 
@@ -265,10 +257,7 @@ def scrape_arc_site(source: dict) -> list[dict]:
             page = BeautifulSoup(html, "html.parser")
             content = extract_content(page)
 
-        # Use source city as default location/market
-        location = source.get("city", "Kansas")
-        market = get_market(location)
-
+        # Don't set location/market/is_local - let analyze_articles.py determine from content
         articles.append({
             "source_id": source["id"],
             "title": title,
@@ -276,9 +265,6 @@ def scrape_arc_site(source: dict) -> list[dict]:
             "content": content,
             "published_at": published_at.isoformat() if published_at else None,
             "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "location": location,
-            "market": market,
-            "is_local": True,
             "is_accessible": True,
         })
 
@@ -359,10 +345,7 @@ def scrape_kscbnews(source: dict) -> list[dict]:
         # Extract content
         content = extract_content(page)
 
-        # Use source city as default location/market
-        location = source.get("city", "Kansas")
-        market = get_market(location)
-
+        # Don't set location/market/is_local - let analyze_articles.py determine from content
         articles.append({
             "source_id": source["id"],
             "title": title,
@@ -370,9 +353,6 @@ def scrape_kscbnews(source: dict) -> list[dict]:
             "content": content,
             "published_at": published_at.isoformat() if published_at else None,
             "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "location": location,
-            "market": market,
-            "is_local": True,
             "is_accessible": True,
         })
 
