@@ -119,6 +119,44 @@ interface Topic {
   priority: number;
 }
 
+interface ContentChunk {
+  title: string;
+  content: string;
+}
+
+// Parse HTML content to extract chunks separated by <h3> and <hr>
+function parseHtmlChunks(html: string): ContentChunk[] {
+  const chunks: ContentChunk[] = [];
+
+  // Split by <h3> tags to find chunk boundaries
+  const h3Regex = /<h3[^>]*>(.*?)<\/h3>/gi;
+  const matches = Array.from(html.matchAll(h3Regex));
+
+  if (matches.length === 0) {
+    return chunks;
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const titleMatch = matches[i];
+    const title = titleMatch[1].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags from title
+    const startIndex = titleMatch.index! + titleMatch[0].length;
+
+    // Find content until next <h3> or end of string
+    const nextMatch = matches[i + 1];
+    const endIndex = nextMatch ? nextMatch.index! : html.length;
+    let chunkHtml = html.substring(startIndex, endIndex);
+
+    // Remove trailing <hr> tags
+    chunkHtml = chunkHtml.replace(/<hr\s*\/?>\s*$/gi, '').trim();
+
+    if (title && chunkHtml) {
+      chunks.push({ title, content: chunkHtml });
+    }
+  }
+
+  return chunks;
+}
+
 async function analyzeArticle(title: string, content: string, defaultCity: string): Promise<Topic[]> {
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!anthropicKey) {
@@ -275,55 +313,118 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Analyze article - may return multiple topics
-    const topics = await analyzeArticle(title, content, source.city || "Kansas");
-    console.log(`Found ${topics.length} topic(s)`);
+    // Check if post has #summary tag - if so, parse HTML into chunks
+    const hasSummaryTag = tags.some((tag: { slug?: string; name?: string }) => {
+      const slug = tag.slug?.toLowerCase() || '';
+      const name = tag.name?.toLowerCase().replace('#', '') || '';
+      return slug === 'summary' || name === 'summary';
+    });
 
-    // Insert each topic as separate row
+    let contentChunks: ContentChunk[] = [];
+    if (hasSummaryTag) {
+      console.log("Post has #summary tag, parsing HTML chunks");
+      contentChunks = parseHtmlChunks(content);
+      console.log(`Parsed ${contentChunks.length} chunks from HTML`);
+    }
+
+    // Process chunks or analyze as single article
     const insertedArticles = [];
-    for (let i = 0; i < topics.length; i++) {
-      const topic = topics[i];
-      // Use fragment to make URL unique for multiple topics
-      const topicUrl = topics.length > 1 ? `${url}?topic=${i + 1}` : url;
 
-      // Calculate market from location
-      const market = await getMarket(topic.location);
-      console.log(`Location: ${topic.location} -> Market: ${market}`);
+    if (contentChunks.length > 0) {
+      // Process each chunk separately
+      for (let i = 0; i < contentChunks.length; i++) {
+        const chunk = contentChunks[i];
+        const chunkUrl = `${url}?chunk=${i + 1}`;
 
-      const { data: article, error: insertError } = await supabase
-        .from("first_party_articles")
-        .upsert({
-          source_id: source.id,
-          title: topic.title,
-          url: topicUrl,
-          content: topics.length > 1 ? `[Part of: ${title}]` : content,
-          published_at: publishedAt,
-          fetched_at: new Date().toISOString(),
-          is_accessible: true,
-          location: topic.location,
-          is_local: topic.is_local,
-          bullet: topic.bullet,
-          priority: topic.priority,
-          market: market,
-        }, {
-          onConflict: "url",
-          ignoreDuplicates: false,
-        })
-        .select()
-        .single();
+        // Analyze this specific chunk
+        const topics = await analyzeArticle(chunk.title, chunk.content, source.city || "Kansas");
+        const topic = topics[0]; // Use first topic from analysis
 
-      if (insertError) {
-        console.error(`Failed to insert topic ${i + 1}:`, insertError);
-      } else {
-        console.log(`Saved topic ${i + 1}:`, topic.title, topic.location, "->", market, "P" + topic.priority);
-        insertedArticles.push({ id: article.id, title: topic.title, location: topic.location, market: market });
+        // Calculate market from location
+        const market = await getMarket(topic.location);
+        console.log(`Chunk ${i + 1}: ${chunk.title} - Location: ${topic.location} -> Market: ${market}`);
+
+        const { data: article, error: insertError } = await supabase
+          .from("first_party_articles")
+          .upsert({
+            source_id: source.id,
+            title: chunk.title,
+            url: chunkUrl,
+            content: chunk.content,
+            published_at: publishedAt,
+            fetched_at: new Date().toISOString(),
+            is_accessible: true,
+            location: topic.location,
+            is_local: topic.is_local,
+            bullet: topic.bullet,
+            priority: topic.priority,
+            market: market,
+          }, {
+            onConflict: "url",
+            ignoreDuplicates: false,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error(`Failed to insert chunk ${i + 1}:`, insertError);
+        } else {
+          console.log(`Saved chunk ${i + 1}:`, chunk.title, topic.location, "->", market, "P" + topic.priority);
+          insertedArticles.push({ id: article.id, title: chunk.title, location: topic.location, market: market });
+        }
+      }
+    } else {
+      // Original logic - analyze article for multiple topics
+      const topics = await analyzeArticle(title, content, source.city || "Kansas");
+      console.log(`Found ${topics.length} topic(s)`);
+
+      // Insert each topic as separate row
+      for (let i = 0; i < topics.length; i++) {
+        const topic = topics[i];
+        // Use fragment to make URL unique for multiple topics
+        const topicUrl = topics.length > 1 ? `${url}?topic=${i + 1}` : url;
+
+        // Calculate market from location
+        const market = await getMarket(topic.location);
+        console.log(`Location: ${topic.location} -> Market: ${market}`);
+
+        const { data: article, error: insertError } = await supabase
+          .from("first_party_articles")
+          .upsert({
+            source_id: source.id,
+            title: topic.title,
+            url: topicUrl,
+            content: topics.length > 1 ? `[Part of: ${title}]` : content,
+            published_at: publishedAt,
+            fetched_at: new Date().toISOString(),
+            is_accessible: true,
+            location: topic.location,
+            is_local: topic.is_local,
+            bullet: topic.bullet,
+            priority: topic.priority,
+            market: market,
+          }, {
+            onConflict: "url",
+            ignoreDuplicates: false,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error(`Failed to insert topic ${i + 1}:`, insertError);
+        } else {
+          console.log(`Saved topic ${i + 1}:`, topic.title, topic.location, "->", market, "P" + topic.priority);
+          insertedArticles.push({ id: article.id, title: topic.title, location: topic.location, market: market });
+        }
       }
     }
 
     return new Response(JSON.stringify({
       status: "success",
       original_title: title,
-      topics_found: topics.length,
+      has_summary_tag: hasSummaryTag,
+      chunks_found: contentChunks.length,
+      articles_created: insertedArticles.length,
       articles: insertedArticles,
     }), {
       status: 200,
