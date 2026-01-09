@@ -134,16 +134,42 @@ async function analyzeArticle(title: string, content: string, defaultCity: strin
 Title: ${title}
 Content: ${text}
 
-If this article contains MULTIPLE distinct news topics (like a roundup, brief, or compilation), split them into separate entries. If it's a single-topic article, return one entry.
+CRITICAL: Determine if this is a SINGLE-topic article or a MULTI-topic compilation.
+
+A MULTI-topic compilation is:
+- A roundup, brief, summary, or digest containing multiple distinct news items
+- Has structural markers like:
+  * Multiple <h3> or <h2> headings in the HTML
+  * Multiple bullet points each describing different stories
+  * Phrases like "In other news", "Also:", "Meanwhile"
+- Each item is a separate news story about different events/people/places
+
+Examples of MULTI-topic:
+- "McPherson local news summary" with sections for mayor, schools, road work, etc.
+- "Kansas daily brief" covering different state legislation topics
+- "Area police logs" listing multiple arrests
+- Obituaries listing multiple people
+
+A SINGLE-topic article is:
+- One cohesive story about one event, person, or issue
+- Even if it mentions multiple people, it's about ONE specific occurrence
+
+If SINGLE-topic: Return 1 entry
+If MULTI-topic: Return SEPARATE entries for each distinct topic
+
+IMPORTANT:
+- Look at the HTML structure - multiple <h3> tags usually mean multiple topics
+- Each topic should have its own title describing that specific story
+- Don't combine multiple news items into one entry
 
 Return ONLY valid JSON (no markdown, no explanation):
 {
   "topics": [
     {
-      "title": "Specific topic title",
+      "title": "Specific topic title (not the overall article title)",
       "location": "City name in Kansas",
       "is_local": true,
-      "bullet": "1-2 sentence punchy summary of this specific topic",
+      "bullet": "1-2 sentence punchy summary of THIS specific topic only",
       "priority": 3
     }
   ]
