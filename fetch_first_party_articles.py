@@ -76,6 +76,11 @@ def main():
         city = source["city"]
         rss_url = source["rss_url"]
 
+        # Skip Ghost Blog - uses webhook instead of RSS
+        if name == "Ghost Blog":
+            print(f"Skipping {name} (uses webhook)")
+            continue
+
         print(f"{name} ({city})...", end=" ")
 
         try:
