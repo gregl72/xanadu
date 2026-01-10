@@ -5,10 +5,14 @@ import time
 
 import anthropic
 import requests
+from pathlib import Path
+
 from dotenv import load_dotenv
 from supabase import create_client
 
-load_dotenv()
+# Load .env from script directory (for cron compatibility)
+script_dir = Path(__file__).parent
+load_dotenv(script_dir / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -130,18 +134,16 @@ def parse_weather_data(forecast_periods: list, hourly_periods: list) -> dict:
 
 
 def generate_weather_bullet(client: anthropic.Anthropic, city: str, weather: dict) -> str:
-    """Generate a punchy weather bullet using Claude."""
-    prompt = f"""Summarize this weather data into a single punchy sentence for {city}, Kansas.
+    """Generate a punchy weather forecast bullet using Claude."""
+    prompt = f"""Write a brief weather forecast for {city}, Kansas for today.
 
-Current temp: {weather.get('current_temp')}°F
-Conditions: {weather.get('current_conditions')}
 High: {weather.get('forecast_high')}°F
 Low: {weather.get('forecast_low')}°F
+Conditions: {weather.get('forecast_conditions')}
 Precipitation chance: {weather.get('precip_chance') or 0}%
 Detailed forecast: {weather.get('detailed_forecast')}
-Temperature trend: {weather.get('temperature_trend') or 'steady'}
 
-Respond with ONLY the bullet, no prefix. Be concise and conversational, like a local weather report."""
+Respond with ONLY a single sentence forecast, no prefix. Be concise and conversational, like a local morning weather report. Focus on what to expect today."""
 
     try:
         message = client.messages.create(
