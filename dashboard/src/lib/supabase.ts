@@ -20,6 +20,7 @@ export interface Article {
   additional_markets?: string[];
   discarded?: boolean;
   used?: boolean;
+  tags?: string[];
 }
 
 export interface Weather {

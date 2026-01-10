@@ -6,6 +6,38 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Initialize syndicate Supabase client for city_map lookups
+const syndicateUrl = Deno.env.get("SYNDICATE_SUPABASE_URL");
+const syndicateKey = Deno.env.get("SYNDICATE_SUPABASE_KEY");
+const syndicateClient = syndicateUrl && syndicateKey
+  ? createClient(syndicateUrl, syndicateKey)
+  : null;
+
+// Get market from Ghost tags via syndicate's city_map table
+async function getMarketFromTags(tagSlugs: string[]): Promise<string | null> {
+  if (!syndicateClient || tagSlugs.length === 0) return null;
+
+  try {
+    const { data, error } = await syndicateClient
+      .from('city_map')
+      .select('market')
+      .in('tag', tagSlugs)
+      .not('market', 'is', null)
+      .eq('is_internal', false)
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      console.log("No market found from tags:", tagSlugs);
+      return null;
+    }
+    console.log(`Market from tag: ${data[0].market}`);
+    return data[0].market;
+  } catch (err) {
+    console.error("Error looking up market from tags:", err);
+    return null;
+  }
+}
+
 // Market anchor coordinates
 const MARKETS: Record<string, { lat: number; lon: number }> = {
   "Ark Valley": { lat: 37.0619, lon: -97.0386 },
@@ -281,6 +313,11 @@ Deno.serve(async (req) => {
 
     console.log("Processing article:", title);
 
+    // Extract tag slugs for storage (reuse tags from above)
+    const tagSlugs = tags.map((t: { slug?: string }) => t.slug).filter(Boolean) as string[];
+    console.log("Post tags:", JSON.stringify(tags));
+    console.log("Tag slugs:", tagSlugs);
+
     // Initialize Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -312,9 +349,13 @@ Deno.serve(async (req) => {
       // Use fragment to make URL unique for multiple topics
       const topicUrl = topics.length > 1 ? `${url}?topic=${i + 1}` : url;
 
-      // Calculate market from location
-      const market = await getMarket(topic.location);
-      console.log(`Location: ${topic.location} -> Market: ${market}`);
+      // Calculate market: try tag-based lookup first, fall back to geocoding
+      let market = await getMarketFromTags(tagSlugs);
+      const marketSource = market ? "tag" : "geocoding";
+      if (!market) {
+        market = await getMarket(topic.location);
+      }
+      console.log(`Location: ${topic.location} -> Market: ${market} (from ${marketSource})`);
 
       const { data: article, error: insertError } = await supabase
         .from("first_party_articles")
@@ -331,6 +372,7 @@ Deno.serve(async (req) => {
           bullet: topic.bullet,
           priority: topic.priority,
           market: market,
+          tags: tagSlugs,
         }, {
           onConflict: "url",
           ignoreDuplicates: false,

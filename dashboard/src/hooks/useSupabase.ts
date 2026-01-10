@@ -24,7 +24,7 @@ export function useArticles(market: string | null, showDiscarded: boolean, showU
 
       let firstPartyQuery = supabase
         .from('first_party_articles')
-        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded, used')
+        .select('id, title, bullet, location, market, priority, url, content, published_at, fetched_at, discarded, used, tags')
         .eq('is_local', true)
         .eq('is_accessible', true);
 
@@ -79,14 +79,58 @@ export function useArticles(market: string | null, showDiscarded: boolean, showU
         ...a,
         is_first_party: false,
         additional_markets: additionalMarketsMap.get(`articles-${a.id}`) || [],
+        tags: [] as string[],
       }));
       const firstParty = (firstPartyResult.data || []).map(a => ({
         ...a,
         is_first_party: true,
         additional_markets: additionalMarketsMap.get(`first_party_articles-${a.id}`) || [],
+        tags: (a.tags || []) as string[],
       }));
 
       let combined = [...news, ...firstParty];
+
+      // Tag-based filtering for first_party (Ghost) articles
+      // Also use title-based fallback for articles without tags (legacy data)
+      const EXCLUDED_TAGS = ['brief', 'obit', 'jail'];
+      combined = combined.filter(a => {
+        if (!a.is_first_party) return true;
+
+        const articleTags = a.tags || [];
+        const titleLower = (a.title || '').toLowerCase();
+
+        // Hide articles with excluded tags
+        if (articleTags.some((t: string) => EXCLUDED_TAGS.includes(t))) {
+          return false;
+        }
+
+        // Fallback: title-based filtering for legacy articles without tags
+        if (articleTags.length === 0) {
+          if (titleLower.includes('brief') ||
+              titleLower.includes('police log') ||
+              titleLower.includes('obituar')) {
+            return false;
+          }
+          // Hide summaries without ?topic= (non-split summaries)
+          if (titleLower.includes('summary') && !a.url?.includes('?topic=')) {
+            return false;
+          }
+        }
+
+        // Hide non-split summaries (has 'summary' tag but no ?topic= in URL)
+        if (articleTags.includes('summary') && !a.url?.includes('?topic=')) {
+          return false;
+        }
+        return true;
+      });
+
+      // Enforce minimum priority 4 for first_party (Ghost) articles
+      combined = combined.map(a => {
+        if (a.is_first_party && (a.priority || 3) < 4) {
+          return { ...a, priority: 4 };
+        }
+        return a;
+      });
 
       // Filter by market if selected (check both primary market and additional markets)
       if (market && market !== 'All') {
