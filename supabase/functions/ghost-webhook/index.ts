@@ -311,6 +311,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Skip Ghost preview URLs (they have /p/uuid/ pattern)
+    if (url.includes('/p/') && /\/p\/[a-f0-9-]{36}\/?/.test(url)) {
+      console.log("Skipping preview URL:", url);
+      return new Response(JSON.stringify({ status: "skipped", reason: "preview URL" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     console.log("Processing article:", title);
 
     // Extract tag slugs for storage (reuse tags from above)
@@ -342,12 +351,20 @@ Deno.serve(async (req) => {
     const topics = await analyzeArticle(title, content, source.city || "Kansas");
     console.log(`Found ${topics.length} topic(s)`);
 
-    // Insert each topic as separate row
+    // Delete existing articles with this URL (handles republishes and multi-topic updates)
+    // Use ilike to catch base URL and any variants with ?topic= or #topic- suffixes
+    const { error: deleteError } = await supabase
+      .from("first_party_articles")
+      .delete()
+      .or(`url.eq.${url},url.ilike.${url}?topic=%,url.ilike.${url}#topic-%`);
+    if (deleteError) {
+      console.error("Failed to delete existing articles:", deleteError);
+    }
+
+    // Insert each topic as separate row (all use parent URL for universal link compatibility)
     const insertedArticles = [];
     for (let i = 0; i < topics.length; i++) {
       const topic = topics[i];
-      // Use fragment to make URL unique for multiple topics
-      const topicUrl = topics.length > 1 ? `${url}?topic=${i + 1}` : url;
 
       // Calculate market: try tag-based lookup first, fall back to geocoding
       let market = await getMarketFromTags(tagSlugs);
@@ -359,10 +376,10 @@ Deno.serve(async (req) => {
 
       const { data: article, error: insertError } = await supabase
         .from("first_party_articles")
-        .upsert({
+        .insert({
           source_id: source.id,
           title: topic.title,
-          url: topicUrl,
+          url: url,
           content: topics.length > 1 ? `[Part of: ${title}]` : content,
           published_at: publishedAt,
           fetched_at: new Date().toISOString(),
@@ -373,9 +390,6 @@ Deno.serve(async (req) => {
           priority: topic.priority,
           market: market,
           tags: tagSlugs,
-        }, {
-          onConflict: "url",
-          ignoreDuplicates: false,
         })
         .select()
         .single();

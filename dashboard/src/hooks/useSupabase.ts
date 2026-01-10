@@ -111,14 +111,15 @@ export function useArticles(market: string | null, showDiscarded: boolean, showU
               titleLower.includes('obituar')) {
             return false;
           }
-          // Hide summaries without ?topic= (non-split summaries)
-          if (titleLower.includes('summary') && !a.url?.includes('?topic=')) {
+          // Hide summaries without hash-summary tag (non-split summaries)
+          if (titleLower.includes('summary')) {
             return false;
           }
         }
 
-        // Hide non-split summaries (has 'summary' tag but no ?topic= in URL)
-        if (articleTags.includes('summary') && !a.url?.includes('?topic=')) {
+        // Hide non-split summaries (has 'summary' tag but not 'hash-summary')
+        // hash-summary indicates it's a chunk from a split summary - show those
+        if (articleTags.includes('summary') && !articleTags.includes('hash-summary')) {
           return false;
         }
         return true;
